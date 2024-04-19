@@ -346,10 +346,80 @@ func (i *instance) chargeOrder(c *gin.Context) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+func (i *instance) refundLineItems(ctx context.Context, lineItems []storage.LineItem, cardToken string) (int64, error) {
+	var totalRefund int64
+
+	// Calculate total refund
+	for _, lineItem := range lineItems {
+		totalRefund += lineItem.PriceCents * lineItem.Quantity
+	}
+
+	// Then send to inner charge
+
+	err := i.innerChargeOrder(ctx, chargeServiceChargeArgs{
+		CardToken:   cardToken,
+		AmountCents: -totalRefund,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return -totalRefund, nil
+
+}
+
+type cancelOrderArgs struct {
+	CardToken string `json:"cardToken"`
+}
+
+// chargeOrderRes is the result of the POST /orders/:id/charge handler
+type cancelOrderRes struct {
+	OrderStatus  string `json:"orderStatus"`
+	ChargedCents int64  `json:"chargedCents"`
+}
+
 // TODO: cancel args, res, function
 // cancelOrder is called by incoming HTTP POST requests to /orders/:id/cancel
 func (i *instance) cancelOrder(c *gin.Context) {
-	panic("Cancel not yet implemented.")
+	ctx := c.Request.Context()
+
+	// parse the body as JSON into the chargeOrderArgs struct
+	var args cancelOrderArgs
+	err := c.BindJSON(&args)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("error decoding body: %v", err)})
+		return
+	}
+
+	id := c.Param("id")
+
+	// Get order
+	order, err := i.stor.GetOrder(ctx, id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error getting order: %v", err)})
+		return
+	}
+
+	// If order is charged
+	// Refund charge on line items.
+	// Update to cancelled.
+	refundAmt, err := i.refundLineItems(ctx, order.LineItems, args.CardToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error refunding line items: %v", err)})
+	}
+
+	err = i.stor.SetOrderStatus(ctx, id, storage.OrderStatusCancelled)
+	if err != nil {
+		// At this point it would just be an issue with setting the status. The refund has already occurred.
+		// Would likely be good to log internally for a manual fix or handle as part of a retry to set the status.
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error cancelling order: %v", err)})
+	}
+
+	c.JSON(http.StatusOK, cancelOrderRes{
+		OrderStatus:  "cancelled",
+		ChargedCents: refundAmt,
+	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
