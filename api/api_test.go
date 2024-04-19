@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -647,6 +648,48 @@ func TestChargeOrder(t *testing.T) {
 
 func TestPostCancelOrder(t *testing.T) {
 	// TODO: add tests
+	ctx := context.Background()
+
+	// Test refunds customer if they were already charged and updates order's status to cancelled.
+	// Also refunds card for particular amount.
+	// define some orders just to make it easier later
+	order1 := storage.Order{
+		ID:        "test-cancel-1",
+		LineItems: []storage.LineItem{},
+		Status:    storage.OrderStatusCharged,
+	}
+	order2 := storage.Order{
+		ID:        "test-cancel-2",
+		LineItems: []storage.LineItem{},
+		Status:    storage.OrderStatusFulfilled,
+	}
+
+	// Should refund customer
+	// Should be cancelled.
+	{
+		stor := new(mocks.MockStorageInstance)
+		stor.On("GetOrder", ctx, order1.ID).Return(order1, nil).Once()
+		h := Handler(stor, nil, nil)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", fmt.Sprintf("/orders/%s/cancel", order1.ID), nil).WithContext(ctx)
+		h.ServeHTTP(w, r)
+		if assert.Equal(t, http.StatusOK, w.Code) {
+			assert.Contains(t, w.HeaderMap.Get("Content-Type"), "application/json")
+			var res getOrdersRes
+			err := json.Unmarshal(w.Body.Bytes(), &res)
+			require.NoError(t, err)
+			if assert.Len(t, res.Orders, 2) {
+				assert.Contains(t, res.Orders, order1)
+				assert.Contains(t, res.Orders, order2)
+			}
+		}
+		assert.Equal(t, true, false) // Force failure.
+		stor.AssertExpectations(t)
+	}
+
+	// If refund failed, do not update the status. Return error.
+
+	// If order has been fulfilled then a 409 should be returned.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

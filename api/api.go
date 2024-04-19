@@ -48,6 +48,7 @@ func Handler(stor mocks.StorageInstance, fulfillmentService, chargeService *http
 	inst.router.POST("/orders", inst.postOrders)
 	inst.router.GET("/orders/:id", inst.getOrder)
 	inst.router.POST("/orders/:id/charge", inst.chargeOrder)
+	inst.router.POST("/orders/:id/cancel", inst.cancelOrder)
 
 	// *instance implements the http.Handler interface with the ServeHTTP method
 	// below so we can just return inst
@@ -346,6 +347,10 @@ func (i *instance) chargeOrder(c *gin.Context) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: cancel args, res, function
+// cancelOrder is called by incoming HTTP POST requests to /orders/:id/cancel
+func (i *instance) cancelOrder(c *gin.Context) {
+	panic("Cancel not yet implemented.")
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
