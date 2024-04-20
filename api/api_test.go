@@ -810,7 +810,7 @@ func TestPostCancelOrder(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func TestPostFulfillOrder(t *testing.T) {
+func TestPutFulfillOrder(t *testing.T) {
 	// the context just needs to be something static so we can include it in the
 	// mocked arguments
 	ctx := context.Background()
@@ -866,9 +866,42 @@ func TestPostFulfillOrder(t *testing.T) {
 	_ = ctx
 	_ = fulfillServ
 	// TODO: add tests
+	order1 := storage.Order{
+		ID: "test-fulfill-1",
+		LineItems: []storage.LineItem{
+			{
+				Description: "item 1",
+				Quantity:    1,
+				PriceCents:  1000,
+			},
+			{
+				Description: "item 2",
+				Quantity:    5,
+				PriceCents:  1870,
+			},
+		},
+		Status: storage.OrderStatusPending,
+	}
 
+	// fulfill fails if order has not been charged yet.
 	{
-		// To do after documenting services.
+		{
+			args := fulfillmentServiceFulfillArgs{
+				Description: "A test description",
+				OrderID:     order1.ID,
+				Quantity:    5, // Not totally sure what this is for yet. Should gain clarity as I work.
+			}
+			byts, err := json.Marshal(args)
+			require.NoError(t, err)
+			stor := new(mocks.MockStorageInstance)
+			stor.On("GetOrder", ctx, order1.ID).Return(order1, nil).Once()
+			h := Handler(stor, fulfillServ, nil)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("PUT", "/orders/fulfill", bytes.NewReader(byts)).WithContext(ctx)
+			h.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		}
+
 	}
 
 }

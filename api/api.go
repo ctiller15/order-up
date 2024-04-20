@@ -46,6 +46,7 @@ func Handler(stor mocks.StorageInstance, fulfillmentService, chargeService *http
 	// go implicitly binds these functions to inst
 	inst.router.GET("/orders", inst.getOrders)
 	inst.router.POST("/orders", inst.postOrders)
+	inst.router.PUT("/orders/fulfill", inst.fulFillOrder)
 	inst.router.GET("/orders/:id", inst.getOrder)
 	inst.router.POST("/orders/:id/charge", inst.chargeOrder)
 	inst.router.POST("/orders/:id/cancel", inst.cancelOrder)
@@ -441,3 +442,40 @@ type fulfillmentServiceFulfillArgs struct {
 }
 
 // TODO: fulfill args, res, function
+func (i *instance) fulFillOrder(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// parse the body as JSON into the chargeOrderArgs struct
+	var args fulfillmentServiceFulfillArgs
+	err := c.BindJSON(&args)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("error decoding body: %v", err)})
+		return
+	}
+
+	// Get order
+	order, err := i.stor.GetOrder(ctx, args.OrderID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error getting order: %v", err)})
+		return
+	}
+
+	if order.Status != storage.OrderStatusCharged {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order cannot be fulfilled, order has not been charged"})
+		return
+	} else {
+		// create a PUT request for each line item.
+		// If successful for ALL requests, update status to fulfilled.
+		// return 200
+
+		// Otherwise, return error.
+
+		// NOTE: instructions state it should be idempotent as long as an order id is passed.
+		// A little confusing. Not sure if this means that each line item gets fulfilled individually,
+		// Or if any of the line items fail we reset.
+		return
+	}
+
+	// panic("Not implemented")
+}
