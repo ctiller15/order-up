@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -67,24 +68,71 @@ func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error)
 	defer cancel()
 
 	if order.ID != "" {
-		opts := options.Update().SetUpsert(true)
 		filter := bson.D{{Key: "_id", Value: order.ID}}
-		fmt.Printf("Order id: %s\n", order.ID)
-		res, err := collection.UpdateOne(ctx, filter, bson.D{
+		// Didn't realize, in the event of an existing document we want to error.
+		res := collection.FindOne(ctx, filter, nil)
+
+		// if res.err != nil {
+		// 	return "", fmt.Errorf("error: InsertOrder: %v", err)
+		// }
+
+		var resultDoc map[string]interface{}
+
+		err := res.Decode(&resultDoc)
+
+		if err != nil {
+			return "", fmt.Errorf("error: InsertOrder: %v", err)
+		}
+
+		if resultDoc != nil {
+			return "", fmt.Errorf("error: InsertOrder: order already exists")
+		}
+
+		// if existingDoc.
+
+		opts := options.Update().SetUpsert(true)
+
+		update := bson.D{{Key: "$set", Value: bson.D{
 			{Key: "_id", Value: order.ID},
 			{Key: "customerEmail", Value: order.CustomerEmail},
 			{Key: "status", Value: order.Status},
-			{Key: "lineItems", Value: order.LineItems}}, opts)
+			{Key: "lineItems", Value: order.LineItems},
+		}},
+		}
 
-		_ = res
-		_ = err
+		_, err = collection.UpdateOne(ctx, filter, update, opts)
+		if err != nil {
+			return "", fmt.Errorf("error: InsertOrder: %v", err)
+		}
+
+		// No error, assume document was upserted.
+
+		return order.ID, nil
 	} else {
-		fmt.Println("No order id found. Generating.")
-	}
-	res, err := collection.InsertOne(ctx, bson.D{{Key: "name", Value: "pi"}, {Key: "value", Value: 3.14159}})
+		new_id := uuid.New().String()
+		opts := options.Update().SetUpsert(true)
+		filter := bson.D{{Key: "_id", Value: new_id}}
 
-	fmt.Println(res)
+		update := bson.D{{Key: "$set", Value: bson.D{
+			{Key: "_id", Value: new_id},
+			{Key: "customerEmail", Value: order.CustomerEmail},
+			{Key: "status", Value: order.Status},
+			{Key: "lineItems", Value: order.LineItems},
+		}},
+		}
+
+		res, err := collection.UpdateOne(ctx, filter, update, opts)
+		if err != nil {
+			return "", fmt.Errorf("error: InsertOrder: %v", err)
+		}
+
+		fmt.Printf("%d documents inserted\n", res.UpsertedCount)
+
+		return new_id, nil
+	}
+	// res, err := collection.InsertOne(ctx, bson.D{{Key: "name", Value: "pi"}, {Key: "value", Value: 3.14159}})
+
+	// fmt.Println(res)
 	// TODO: if the order's ID field is empty, generate a random ID, then insert
 	// into the database
-	return "", errors.New("unimplemented")
 }
