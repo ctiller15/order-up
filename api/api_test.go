@@ -690,11 +690,18 @@ func TestPostCancelOrder(t *testing.T) {
 		},
 		Status: storage.OrderStatusCharged,
 	}
-	// order2 := storage.Order{
-	// 	ID:        "test-cancel-2",
-	// 	LineItems: []storage.LineItem{},
-	// 	Status:    storage.OrderStatusFulfilled,
-	// }
+
+	order2 := storage.Order{
+		ID:        "test-cancel-2",
+		LineItems: []storage.LineItem{},
+		Status:    storage.OrderStatusCharged,
+	}
+
+	order3 := storage.Order{
+		ID:        "test-cancel-3",
+		LineItems: []storage.LineItem{},
+		Status:    storage.OrderStatusFulfilled,
+	}
 
 	// Should refund customer
 	// Should be cancelled.
@@ -728,9 +735,77 @@ func TestPostCancelOrder(t *testing.T) {
 		stor.AssertExpectations(t)
 	}
 
+	chgServ = mocks.NewMockedService(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// make sure the URL is /charge and the method is POST since that's the only
+		// endpoint the charge service has
+		require.Equal(t, "/charge", r.URL.Path)
+		require.Equal(t, http.MethodPost, r.Method)
+
+		// decode the body as a chargeServiceChargeArgs
+		var args chargeServiceChargeArgs
+		err := json.NewDecoder(r.Body).Decode(&args)
+		require.NoError(t, err)
+
+		// make sure the args are sane
+		// require.True(t, args.AmountCents < 0, "amountCents must be less than 0: %v", args.AmountCents)
+		require.NotEmpty(t, args.CardToken)
+
+		// increment calls so we can test to make sure the charge service was ever
+		// called and that it was only called an expected number of times
+		atomic.AddInt64(&chgServCalled, 1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
 	// If refund failed, do not update the status. Return error.
+	{
+		chgServCalled = 0
+		args := cancelOrderArgs{
+			CardToken: "amex",
+		}
+		byts, err := json.Marshal(args)
+		require.NoError(t, err)
+		stor := new(mocks.MockStorageInstance)
+		stor.On("GetOrder", ctx, order2.ID).Return(order2, nil).Once()
+		// Not entirely positive how to assert this mock was not called. Piggybacking off of implication with assertexpectations.
+		// stor.On("SetOrderStatus", ctx, order2.ID, storage.OrderStatusCancelled).Return(nil).Once()
+		h := Handler(stor, nil, chgServ)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", fmt.Sprintf("/orders/%s/cancel", order2.ID), bytes.NewReader(byts)).WithContext(ctx)
+		h.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		// if assert.Equal(t, http.StatusOK, w.Code) {
+		// 	assert.Contains(t, w.HeaderMap.Get("Content-Type"), "application/json")
+		// 	var res cancelOrderRes
+		// 	err := json.Unmarshal(w.Body.Bytes(), &res)
+		// 	require.NoError(t, err)
+		// 	assert.Equal(t, res.OrderStatus, "cancelled")
+		// 	assert.Equal(t, res.ChargedCents, int64(0))
+		// 	assert.EqualValues(t, 1, chgServCalled)
+		// 	// if assert.Len(t, res.Orders, 2) {
+		// 	// 	assert.Contains(t, res.Orders, order1)
+		// 	// 	assert.Contains(t, res.Orders, order2)
+		// 	// }
+		// }
+		stor.AssertExpectations(t)
+	}
 
 	// If order has been fulfilled then a 409 should be returned.
+	{
+		chgServCalled = 0
+		args := cancelOrderArgs{
+			CardToken: "amex",
+		}
+		byts, err := json.Marshal(args)
+		require.NoError(t, err)
+		stor := new(mocks.MockStorageInstance)
+		stor.On("GetOrder", ctx, order3.ID).Return(order3, nil).Once()
+		h := Handler(stor, nil, chgServ)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", fmt.Sprintf("/orders/%s/cancel", order3.ID), bytes.NewReader(byts)).WithContext(ctx)
+		h.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		stor.AssertExpectations(t)
+	}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -791,5 +866,9 @@ func TestPostFulfillOrder(t *testing.T) {
 	_ = ctx
 	_ = fulfillServ
 	// TODO: add tests
+
+	{
+		// To do after documenting services.
+	}
 
 }

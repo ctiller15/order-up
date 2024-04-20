@@ -401,19 +401,27 @@ func (i *instance) cancelOrder(c *gin.Context) {
 		return
 	}
 
+	var refundAmt int64
 	// If order is charged
 	// Refund charge on line items.
 	// Update to cancelled.
-	refundAmt, err := i.refundLineItems(ctx, order.LineItems, args.CardToken)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error refunding line items: %v", err)})
-	}
+	if order.Status == storage.OrderStatusCharged {
+		refundAmt, err = i.refundLineItems(ctx, order.LineItems, args.CardToken)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error refunding line items: %v", err)})
+			return
+		}
 
-	err = i.stor.SetOrderStatus(ctx, id, storage.OrderStatusCancelled)
-	if err != nil {
-		// At this point it would just be an issue with setting the status. The refund has already occurred.
-		// Would likely be good to log internally for a manual fix or handle as part of a retry to set the status.
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error cancelling order: %v", err)})
+		err = i.stor.SetOrderStatus(ctx, id, storage.OrderStatusCancelled)
+		if err != nil {
+			// At this point it would just be an issue with setting the status. The refund has already occurred.
+			// Would likely be good to log internally for a manual fix or handle as part of a retry to set the status.
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error cancelling order: %v", err)})
+			return
+		}
+	} else if order.Status == storage.OrderStatusFulfilled {
+		c.JSON(http.StatusConflict, gin.H{"error": "order has already been fulfilled"})
+		return
 	}
 
 	c.JSON(http.StatusOK, cancelOrderRes{

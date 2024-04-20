@@ -97,3 +97,8 @@ a driver package like [pq](github.com/lib/pq). See [this tutorial](https://golan
 
 Remember when you're adding new packages to run `go mod tidy` to ensure the
 go.mod and go.sum files are updated.
+
+### API documentation
+
+```
+```
