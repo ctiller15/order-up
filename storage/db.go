@@ -3,6 +3,12 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
@@ -48,6 +54,36 @@ func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderSt
 // already set and then insert it into the database. It should return the order's
 // ID. If the order already exists then ErrOrderExists should be returned.
 func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error) {
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			panic(err)
+		}
+	}()
+
+	collection := client.Database("order-up-tests").Collection("orders")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if order.ID != "" {
+		opts := options.Update().SetUpsert(true)
+		filter := bson.D{{Key: "_id", Value: order.ID}}
+		fmt.Printf("Order id: %s\n", order.ID)
+		res, err := collection.UpdateOne(ctx, filter, bson.D{
+			{Key: "_id", Value: order.ID},
+			{Key: "customerEmail", Value: order.CustomerEmail},
+			{Key: "status", Value: order.Status},
+			{Key: "lineItems", Value: order.LineItems}}, opts)
+
+		_ = res
+		_ = err
+	} else {
+		fmt.Println("No order id found. Generating.")
+	}
+	res, err := collection.InsertOne(ctx, bson.D{{Key: "name", Value: "pi"}, {Key: "value", Value: 3.14159}})
+
+	fmt.Println(res)
 	// TODO: if the order's ID field is empty, generate a random ID, then insert
 	// into the database
 	return "", errors.New("unimplemented")

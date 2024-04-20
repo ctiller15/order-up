@@ -864,7 +864,7 @@ func TestPutFulfillOrder(t *testing.T) {
 	// these 2 lines are strictly to prevent Go from complaining that we didn't use
 	// these variables and you should delete these lines once you add the tests
 	_ = ctx
-	_ = fulfillServ
+	// _ = fulfillServ
 	// TODO: add tests
 	order1 := storage.Order{
 		ID: "test-fulfill-1",
