@@ -100,5 +100,134 @@ go.mod and go.sum files are updated.
 
 ### API documentation
 
+GET /orders - retrieves a list of orders and their statuses
+
+Status codes: 200, 
+```bash
+# Example Response - 200
+{
+    "orders": [
+        {
+            "id": "order-1",
+            "customerEmail": "email@example.com",
+            "lineItems": [
+                {
+                    "description": "A really awesome laptop",
+                    "priceCents": 123000,
+                    "quantity": 1
+                }
+            ],
+            "status": 0
+        },
+        {
+            "id": "order-2",
+            "customerEmail": "email2@example.com",
+            "lineItems": [
+                {
+                    "description": "A sponge.",
+                    "priceCents": 500,
+                    "quantity": 50
+                },
+                {
+                    "description": "ACME baking kit! For all of your roadrunner needs!",
+                    "priceCents": 1234,
+                    "quantity": 3
+                }
+            ],
+            "status": 1
+        },
+    ]
+}
 ```
+
+POST /orders - inputs a list of line items in database as an order.
+
+Status codes: 200,
+```bash
+# Example Request
+{
+    "customerEmail": "example@example.com",
+    "lineItems": [
+        {
+            "description": "A sponge.",
+            "priceCents": 500,
+            "quantity": 50
+        },
+        {
+            "description": "ACME baking kit! For all of your roadrunner needs!",
+            "priceCents": 1234,
+            "quantity": 3
+        }
+    ]
+}
+# Example Response
+{
+    "id": "order-abc",
+    "customerEmail": "example@example.com",
+    "lineItems": [
+        {
+            "description": "A sponge.",
+            "priceCents": 500,
+            "quantity": 50
+        },
+        {
+            "description": "ACME baking kit! For all of your roadrunner needs!",
+            "priceCents": 1234,
+            "quantity": 3
+        }
+    ],
+    "status": 0
+}
+```
+
+GET /orders/:id - gets an order by id
+Status codes: 200,
+```bash
+# Example Response - 200
+{
+    "id": "order-abc",
+    "customerEmail": "example@example.com",
+    "lineItems": [
+        {
+            "description": "A sponge.",
+            "priceCents": 500,
+            "quantity": 50
+        },
+        {
+            "description": "ACME baking kit! For all of your roadrunner needs!",
+            "priceCents": 1234,
+            "quantity": 3
+        }
+    ],
+    "status": 0
+}
+```
+
+<!-- Here I assumed USD because it had not been specified. This is important for the frontend team to know and to communicate to the user how they see fit. -->
+POST /orders/:id/charge - charges a given order. Returns the charge in cents (USD).
+Status codes: 200,
+```bash
+# Example Request
+{
+    "cardToken": "amex"
+}
+# Example Response
+{
+    "chargedCents": 5300
+}
+```
+
+POST /orders/:id/cancel - cancels a given order and issues a refund.
+Status codes: 201,
+```bash
+# Example Request
+{
+    "cardToken": "amex"
+}
+
+# Example Response - 201
+{
+    "orderStatus": "cancelled",
+    "chargedCents": -4500 # Negative if a refund has been issued.
+}
 ```
