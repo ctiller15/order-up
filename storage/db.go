@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,7 +28,9 @@ var (
 // the special ErrOrderNotFound error should be returned.
 func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
 	// TODO: get order from DB based on the id
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	mongoUri := os.Getenv("MONGO_URI")
+	currentDb := os.Getenv("MONGO_DATABASE_NAME")
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
 
 	defer func() {
 		if err = client.Disconnect(ctx); err != nil {
@@ -35,7 +38,7 @@ func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
 		}
 	}()
 
-	collection := client.Database("order-up-tests").Collection("orders")
+	collection := client.Database(currentDb).Collection("orders")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -71,7 +74,9 @@ func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
 // GetOrders should return all orders with the given status. If status is the
 // special -1 value then it should return all orders regardless of their status.
 func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, error) {
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	mongoUri := os.Getenv("MONGO_URI")
+	currentDb := os.Getenv("MONGO_DATABASE_NAME")
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
 
 	defer func() {
 		if err = client.Disconnect(ctx); err != nil {
@@ -79,7 +84,7 @@ func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, 
 		}
 	}()
 
-	collection := client.Database("order-up-tests").Collection("orders")
+	collection := client.Database(currentDb).Collection("orders")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -137,7 +142,9 @@ func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, 
 // field. If that ID isn't found then the special ErrOrderNotFound error should
 // be returned.
 func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderStatus) error {
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	mongoUri := os.Getenv("MONGO_URI")
+	currentDb := os.Getenv("MONGO_DATABASE_NAME")
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
 
 	defer func() {
 		if err = client.Disconnect(ctx); err != nil {
@@ -145,7 +152,7 @@ func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderSt
 		}
 	}()
 
-	collection := client.Database("order-up-tests").Collection("orders")
+	collection := client.Database(currentDb).Collection("orders")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -194,7 +201,9 @@ func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderSt
 // already set and then insert it into the database. It should return the order's
 // ID. If the order already exists then ErrOrderExists should be returned.
 func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error) {
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	mongoUri := os.Getenv("MONGO_URI")
+	currentDb := os.Getenv("MONGO_DATABASE_NAME")
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
 
 	defer func() {
 		if err = client.Disconnect(ctx); err != nil {
@@ -202,7 +211,7 @@ func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error)
 		}
 	}()
 
-	collection := client.Database("order-up-tests").Collection("orders")
+	collection := client.Database(currentDb).Collection("orders")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

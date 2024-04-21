@@ -478,6 +478,7 @@ func TestChargeOrder(t *testing.T) {
 		}
 		stor := new(mocks.MockStorageInstance)
 		stor.On("GetOrder", ctx, order.ID).Return(order, nil).Once()
+		// stor.On("SetOrderStatus", ctx, order.ID, storage.OrderStatusCharged).Return(nil).Once()
 		h := Handler(stor, nil, chgServ)
 		w := httptest.NewRecorder()
 		byts, err := json.Marshal(args)
@@ -944,6 +945,8 @@ func TestPutFulfillOrder(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code)
 			assert.Equal(t, fulfilledItems, expected)
 		}
+
+		// TODO: Add tests for sadder paths, if fulfillment service doesn't completely fulfill, etc.
 	}
 
 }

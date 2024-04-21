@@ -1,4 +1,4 @@
-# order-up
+<!-- # order-up
 
 Code candidates will extend as part of their technical interview process. The
 order-up service handles all order-specific calls including creating orders,
@@ -96,14 +96,20 @@ a driver package like [pq](github.com/lib/pq). See [this tutorial](https://golan
 * [radix](https://pkg.go.dev/github.com/mediocregopher/radix/v4) Redis driver
 
 Remember when you're adding new packages to run `go mod tidy` to ensure the
-go.mod and go.sum files are updated.
+go.mod and go.sum files are updated. -->
 
-### Project Setup
+## Order Up
+The order-up service handles all order-specific calls including creating orders,
+checking the status on orders, etc. This service is part of a larger microservice
+backend for a online marketplace.
+
+## Project Setup
 <!-- Todo: Create start script. -->
 1. Download [Docker](https://docs.docker.com/get-docker/).
 1. [install Go](https://go.dev/doc/install)
 1. Pull repository
 1. Run `go mod tidy` in repository folder
+1. `cp .env.example .env` - Fill with appropriate values for mongo database
 1. Start mongodb, `docker run --rm -it -p 27017:27017 mongo`
 1. Run project - `go run main.go`
 1. Open browser and check `localhost:8888`
@@ -153,6 +159,12 @@ Status codes: 200,
         },
     ]
 }
+
+# Example response: 400
+{
+    "error": "unknown value for status: invalid"
+}
+
 ```
 
 POST /orders - inputs a list of line items in database as an order.
@@ -193,6 +205,24 @@ Status codes: 200,
     ],
     "status": 0
 }
+
+# Example Response - 400
+{
+    "error": "invalid customerEmail"
+}
+
+{ 
+    "error": "an order must contain at least one line item"
+}
+
+{
+    "error": "an order's total cannot be less than 0"
+}
+
+# Example Response - 409
+{
+    "error": "order already exists"
+}
 ```
 
 GET /orders/:id - gets an order by id
@@ -216,6 +246,11 @@ Status codes: 200,
     ],
     "status": 0
 }
+
+# Example Response - 404
+{
+    "error": "not found"
+}
 ```
 
 <!-- Here I assumed USD because it had not been specified. This is important for the frontend team to know and to communicate to the user how they see fit. -->
@@ -226,9 +261,15 @@ Status codes: 200,
 {
     "cardToken": "amex"
 }
+
 # Example Response
 {
     "chargedCents": 5300
+}
+
+# Example Response - 409
+{
+    "error": "order ineligible for charging"
 }
 ```
 
@@ -244,5 +285,27 @@ Status codes: 201,
 {
     "orderStatus": "cancelled",
     "chargedCents": -4500 # Negative if a refund has been issued.
+}
+
+# Example Response - 409
+{
+    "error": "order has already been fulfilled"
+}
+```
+
+PUT /orders/:id/fulfill - fulfils a given order by fulfilling all of the relevant line items.
+Returns the final status of the order after fulfill attempt.
+```bash
+# Example request
+{}
+
+# Example Response - 200
+{
+    "fulfilled": "true"
+}
+
+# Example Response - 400
+{
+    "error": "order cannot be fulfilled, order has not been charged."
 }
 ```

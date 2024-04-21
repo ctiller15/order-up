@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/levenlabs/order-up/mocks"
@@ -25,6 +26,7 @@ type instance struct {
 	router             *gin.Engine
 	fulfillmentService *http.Client
 	chargeService      *http.Client
+	mu                 sync.Mutex
 }
 
 // Handler returns an implementation of the http.Handler interface that can be
@@ -87,6 +89,7 @@ func (i *instance) getOrders(c *gin.Context) {
 		status = storage.OrderStatusCharged
 	case "fulfilled":
 		status = storage.OrderStatusFulfilled
+		// Add case for cancelled.
 	case "":
 		// GetAllOrders accepts a -1 to indicate that all orders should be returned
 		status = -1
@@ -253,7 +256,10 @@ func (i *instance) innerChargeOrder(ctx context.Context, args chargeServiceCharg
 	// make a POST request to the /charge endpoint on the charge service
 	// the body is JSON but this method accepts a io.Reader so we need to wrap the
 	// byte slice in bytes.NewReader which simply reads over the sent byte slice
+	i.mu.Lock()
 	resp, err := i.chargeService.Post("/charge", "application/json", bytes.NewReader(byts))
+	i.mu.Unlock()
+
 	if err != nil {
 		return fmt.Errorf("error making charge request: %w", err)
 	}
@@ -312,18 +318,25 @@ func (i *instance) chargeOrder(c *gin.Context) {
 		}
 		return
 	}
-	if order.Status != storage.OrderStatusCharged {
+
+	// Based on the test cases I'm assuming this should error if already charged.
+	// Or fulfilled.
+	if order.Status == storage.OrderStatusCharged || order.Status == storage.OrderStatusFulfilled {
 		c.JSON(http.StatusConflict, gin.H{"error": "order ineligible for charging"})
 		return
 	}
 
-	err = i.innerChargeOrder(ctx, chargeServiceChargeArgs{
-		CardToken:   args.CardToken,
-		AmountCents: order.TotalCents(),
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// We know that you can charge a negative cents amount, so I'm opting to just
+	// Error out if it is explicitly zero, not if it's negative.
+	if order.TotalCents() != 0 {
+		err = i.innerChargeOrder(ctx, chargeServiceChargeArgs{
+			CardToken:   args.CardToken,
+			AmountCents: order.TotalCents(),
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// in a real-world scenario we would do a two-phase change where we set it to

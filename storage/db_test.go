@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -15,6 +16,10 @@ import (
 
 func setupSuite(tb testing.TB) func(tb testing.TB) {
 	fmt.Println("Setting up")
+	err := godotenv.Load("../.env.test")
+	if err != nil {
+		fmt.Println("Failed to load env file. Tests may fail as a result")
+	}
 
 	return func(tb testing.TB) {
 		ctx := context.TODO()
