@@ -98,6 +98,21 @@ a driver package like [pq](github.com/lib/pq). See [this tutorial](https://golan
 Remember when you're adding new packages to run `go mod tidy` to ensure the
 go.mod and go.sum files are updated.
 
+### Project Setup
+<!-- Todo: Create start script. -->
+1. Download [Docker](https://docs.docker.com/get-docker/).
+1. [install Go](https://go.dev/doc/install)
+1. Pull repository
+1. Run `go mod tidy` in repository folder
+1. Start mongodb, `docker run --rm -it -p 27017:27017 mongo`
+1. Run project - `go run main.go`
+1. Open browser and check `localhost:8888`
+
+### Using the project
+<!-- Todo: postman collection or similar. Local seed data as well? -->
+- Run curl/postman against localhost:8888 the following:
+<!-- TODO: Add more examples. -->
+
 ### API documentation
 
 GET /orders - retrieves a list of orders and their statuses

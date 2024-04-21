@@ -883,6 +883,23 @@ func TestPutFulfillOrder(t *testing.T) {
 		Status: storage.OrderStatusPending,
 	}
 
+	order2 := storage.Order{
+		ID: "test-fulfill-2",
+		LineItems: []storage.LineItem{
+			{
+				Description: "item 1",
+				Quantity:    1,
+				PriceCents:  1000,
+			},
+			{
+				Description: "item 2",
+				Quantity:    5,
+				PriceCents:  1870,
+			},
+		},
+		Status: storage.OrderStatusCharged,
+	}
+
 	// fulfill fails if order has not been charged yet.
 	{
 		{
@@ -901,7 +918,26 @@ func TestPutFulfillOrder(t *testing.T) {
 			h.ServeHTTP(w, r)
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		}
+	}
 
+	// fulfill fails if order has not been charged yet.
+	{
+		{
+			args := fulfillmentServiceFulfillArgs{
+				Description: "A test description",
+				OrderID:     order1.ID,
+				Quantity:    5, // Not totally sure what this is for yet. Should gain clarity as I work.
+			}
+			byts, err := json.Marshal(args)
+			require.NoError(t, err)
+			stor := new(mocks.MockStorageInstance)
+			stor.On("GetOrder", ctx, order1.ID).Return(order1, nil).Once()
+			h := Handler(stor, fulfillServ, nil)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("PUT", "/orders/fulfill", bytes.NewReader(byts)).WithContext(ctx)
+			h.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		}
 	}
 
 }

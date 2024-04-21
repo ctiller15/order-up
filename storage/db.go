@@ -162,20 +162,30 @@ func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderSt
 		if err != nil {
 			// Error there. If it is due to no documents, skip. If it is anything else, return out.
 			if err == mongo.ErrNoDocuments {
-				fmt.Println("No documents found. Proceeding with insert.")
+				return ErrOrderNotFound
 			} else {
-				return fmt.Errorf("InsertOrder: %v", err)
+				return fmt.Errorf("SetOrderStatus: %v", err)
 			}
 		} else {
 			// No error, this means it successfully found an order.
-			fmt.Println("order exists.")
-			return ErrOrderExists
+			// Then update.
+			update := bson.D{{Key: "$set", Value: bson.D{
+				{Key: "status", Value: status},
+			}},
+			}
+			fmt.Println("order exists. Updating.")
+			_, err := collection.UpdateOne(ctx, filter, update)
+			if err != nil {
+				return fmt.Errorf("SetOrderStatus: %v", err)
+			}
+
+			return nil
+
 		}
 
-		// Then update.
 	}
 	// If id is not found, then return err.
-	return nil
+	return ErrOrderNotFound
 }
 
 ////////////////////////////////////////////////////////////////////////////////

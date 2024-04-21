@@ -180,6 +180,8 @@ func TestGetOrders(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestSetOrderStatus(t *testing.T) {
+	teardownSuite := setupSuite(t)
+	defer teardownSuite(t)
 	// the context isn't meaningful for these tests so we just use a new one
 	ctx := context.Background()
 	// make a new instance with a random database so this test is isolated from
