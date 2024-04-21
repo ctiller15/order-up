@@ -307,6 +307,8 @@ func (i *instance) chargeOrder(c *gin.Context) {
 	// the Param function
 	id := c.Param("id")
 
+	fmt.Println("HERE!!!")
+
 	// make a call to the storage instance to get the current state of the order
 	// so we can make sure that its ready for charging and get the amount to charge
 	order, err := i.stor.GetOrder(c.Request.Context(), id)

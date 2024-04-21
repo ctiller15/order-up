@@ -117,6 +117,34 @@ backend for a online marketplace.
 ### Using the project
 <!-- Todo: postman collection or similar. Local seed data as well? -->
 - Run curl/postman against localhost:8888 the following:
+
+POST localhost:8888/orders
+
+```json
+{
+    "customerEmail": "example@example.com",
+    "lineItems": [
+        {
+            "description": "A sponge.",
+            "priceCents": 500,
+            "quantity": 50
+        },
+        {
+            "description": "ACME baking kit! For all of your roadrunner needs!",
+            "priceCents": 1234,
+            "quantity": 3
+        }
+    ]
+}
+```
+(Record the id from the response)
+
+GET localhost:8888/orders/{order_id}
+
+### Using the charge and fulfillment services
+- These are external services. You will need to set them up separately.
+- (Insert hypothetical instructions on how to set up external service here. I didn't make time for this, but you could do it locally via a mock server or similar.)
+
 <!-- TODO: Add more examples. -->
 
 ### API documentation

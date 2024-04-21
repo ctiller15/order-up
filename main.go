@@ -5,16 +5,22 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 
+	"github.com/joho/godotenv"
 	"github.com/levenlabs/order-up/api"
 	"github.com/levenlabs/order-up/mocks"
 	"github.com/levenlabs/order-up/storage"
 )
 
 func main() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		fmt.Println("Env vars not loaded. May experience degraded performance.")
+	}
 	// flag.String returns a pointer to a string value that is set after
 	// flag.Parse() is called
 	addr := flag.String("listen-addr", "localhost:8888", "the address to listen on for API requests")
