@@ -914,29 +914,35 @@ func TestPutFulfillOrder(t *testing.T) {
 			stor.On("GetOrder", ctx, order1.ID).Return(order1, nil).Once()
 			h := Handler(stor, fulfillServ, nil)
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("PUT", "/orders/fulfill", bytes.NewReader(byts)).WithContext(ctx)
+			r := httptest.NewRequest("PUT", fmt.Sprintf("/orders/%s/fulfill", order1.ID), bytes.NewReader(byts)).WithContext(ctx)
 			h.ServeHTTP(w, r)
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		}
 	}
 
-	// fulfill fails if order has not been charged yet.
+	// fulfill happy path.
 	{
 		{
-			args := fulfillmentServiceFulfillArgs{
-				Description: "A test description",
-				OrderID:     order1.ID,
-				Quantity:    5, // Not totally sure what this is for yet. Should gain clarity as I work.
-			}
-			byts, err := json.Marshal(args)
-			require.NoError(t, err)
+			// args := fulfillmentServiceFulfillArgs{
+			// 	Description: "A test description",
+			// 	OrderID:     order2.ID,
+			// 	Quantity:    2, // As per Nathan, Quantity refers to the number of items that are being marked as ready by the fulfiller.
+			// }
+			// byts, err := json.Marshal(args)
+			// require.NoError(t, err)
 			stor := new(mocks.MockStorageInstance)
-			stor.On("GetOrder", ctx, order1.ID).Return(order1, nil).Once()
+			stor.On("GetOrder", ctx, order2.ID).Return(order2, nil).Once()
+			stor.On("SetOrderStatus", ctx, order2.ID, storage.OrderStatusFulfilled).Return(nil).Once()
 			h := Handler(stor, fulfillServ, nil)
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("PUT", "/orders/fulfill", bytes.NewReader(byts)).WithContext(ctx)
+			r := httptest.NewRequest("PUT", fmt.Sprintf("/orders/%s/fulfill", order2.ID), nil).WithContext(ctx)
 			h.ServeHTTP(w, r)
-			assert.Equal(t, http.StatusBadRequest, w.Code)
+			expected := map[string]bool{
+				"test-fulfill-2item 1": true,
+				"test-fulfill-2item 2": true,
+			}
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, fulfilledItems, expected)
 		}
 	}
 

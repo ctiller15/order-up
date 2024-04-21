@@ -46,10 +46,10 @@ func Handler(stor mocks.StorageInstance, fulfillmentService, chargeService *http
 	// go implicitly binds these functions to inst
 	inst.router.GET("/orders", inst.getOrders)
 	inst.router.POST("/orders", inst.postOrders)
-	inst.router.PUT("/orders/fulfill", inst.fulFillOrder)
 	inst.router.GET("/orders/:id", inst.getOrder)
 	inst.router.POST("/orders/:id/charge", inst.chargeOrder)
 	inst.router.POST("/orders/:id/cancel", inst.cancelOrder)
+	inst.router.PUT("/orders/:id/fulfill", inst.fulFillOrder)
 
 	// *instance implements the http.Handler interface with the ServeHTTP method
 	// below so we can just return inst
@@ -441,20 +441,70 @@ type fulfillmentServiceFulfillArgs struct {
 	OrderID     string `json:"orderID"`
 }
 
+// innerChargeOrder actually does the charging or refunding (negative amount) by
+// making at POST request to the charge service
+func (i *instance) innerFulfillOrder(ctx context.Context, args fulfillmentServiceFulfillArgs) error {
+	byts, err := json.Marshal(args)
+	if err != nil {
+		return fmt.Errorf("error encoding fulfill body: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, "/fulfill", bytes.NewReader(byts))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := i.fulfillmentService.Do(req)
+
+	if err != nil {
+		return fmt.Errorf("error making fulfillment request: %w", err)
+	}
+	// we need to make sure we close the body otherwise this will leak memory
+	defer resp.Body.Close()
+	// /fulfill expects a 200 OK, if we didn't get
+	// that then we must've errored
+	if resp.StatusCode != http.StatusOK {
+		// we opportunistically try to read the body in case it contains an error but
+		// if it fails then that's not the end of the world so we ignore the error
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("error fulfilling body: %d %s", resp.StatusCode, body)
+	}
+
+	// For the purposes of this exercise we'll assume that a 200 means the entire order was fulfilled.
+	// In reality this is more complicated.
+	return nil
+}
+
+func (i *instance) fulfillOrders(ctx context.Context, orderID string, lineItems []storage.LineItem) (bool, error) {
+	// A variable to track if the entire order has been fulfilled.
+	for _, item := range lineItems {
+		args := fulfillmentServiceFulfillArgs{
+			Description: item.Description,
+			OrderID:     orderID,
+			Quantity:    item.Quantity,
+		}
+
+		err := i.innerFulfillOrder(ctx, args)
+
+		if err != nil {
+			return false, fmt.Errorf("fulfillOrders: %v", err)
+		}
+
+		// Assume the fulfillment service handles the logic behind saying if a given
+		// Line item has been fulfilled or not,
+		// based off of the quantity.
+	}
+
+	// Made it to the end, has been fulfilled on the order.
+	return true, nil
+}
+
 // TODO: fulfill args, res, function
 func (i *instance) fulFillOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// parse the body as JSON into the chargeOrderArgs struct
-	var args fulfillmentServiceFulfillArgs
-	err := c.BindJSON(&args)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("error decoding body: %v", err)})
-		return
-	}
+	id := c.Param("id")
 
 	// Get order
-	order, err := i.stor.GetOrder(ctx, args.OrderID)
+	order, err := i.stor.GetOrder(ctx, id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error getting order: %v", err)})
@@ -465,17 +515,23 @@ func (i *instance) fulFillOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "order cannot be fulfilled, order has not been charged"})
 		return
 	} else {
-		// create a PUT request for each line item.
-		// If successful for ALL requests, update status to fulfilled.
-		// return 200
+		allFulfilled, err := i.fulfillOrders(ctx, id, order.LineItems)
 
-		// Otherwise, return error.
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error fulfilling line items: %v", err)})
+			return
+		}
 
-		// NOTE: instructions state it should be idempotent as long as an order id is passed.
-		// A little confusing. Not sure if this means that each line item gets fulfilled individually,
-		// Or if any of the line items fail we reset.
+		if allFulfilled {
+			// If allFulfilled is true, update status.
+			err = i.stor.SetOrderStatus(ctx, id, storage.OrderStatusFulfilled)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("error updating order to fulfilled: %v", err)})
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{"fulfilled": "true"})
 		return
 	}
-
-	// panic("Not implemented")
 }
