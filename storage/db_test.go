@@ -9,7 +9,26 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+func setupSuite(tb testing.TB) func(tb testing.TB) {
+	fmt.Println("Setting up")
+
+	return func(tb testing.TB) {
+		ctx := context.TODO()
+		// defer ctx.Done()
+		// TODO: move to env var. Clean up.
+		client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+		if err != nil {
+			panic(err)
+		}
+		collection := client.Database("order-up-tests").Collection("orders")
+		collection.Drop(ctx)
+		fmt.Println("Tearing down")
+	}
+}
 
 func randomDatabase() string {
 	// make a backing array with length 12 and a slice with length 12 as well
@@ -29,6 +48,8 @@ func randomDatabase() string {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestGetOrder(t *testing.T) {
+	teardownSuite := setupSuite(t)
+	defer teardownSuite(t)
 	// the context isn't meaningful for these tests so we just use a new one
 	ctx := context.Background()
 	// make a new instance with a random database so this test is isolated from
@@ -75,6 +96,8 @@ func TestGetOrder(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestGetOrders(t *testing.T) {
+	teardownSuite := setupSuite(t)
+	defer teardownSuite(t)
 	// the context isn't meaningful for these tests so we just use a new one
 	ctx := context.Background()
 	// make a new instance with a random database so this test is isolated from
@@ -205,6 +228,8 @@ func TestSetOrderStatus(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestInsertOrder(t *testing.T) {
+	teardownSuite := setupSuite(t)
+	defer teardownSuite(t)
 	// the context isn't meaningful for these tests so we just use a new one
 	ctx := context.Background()
 	// make a new instance with a random database so this test is isolated from

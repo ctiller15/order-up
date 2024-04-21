@@ -27,6 +27,42 @@ var (
 // the special ErrOrderNotFound error should be returned.
 func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
 	// TODO: get order from DB based on the id
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			panic(err)
+		}
+	}()
+
+	collection := client.Database("order-up-tests").Collection("orders")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if id != "" {
+		// Find item.
+		// Abstract this fetch by id chunk out.
+		filter := bson.D{{Key: "_id", Value: id}}
+		res := collection.FindOne(ctx, filter, nil)
+
+		var resultDoc Order
+
+		err := res.Decode(&resultDoc)
+		// Patching together the result. I would find a better way to do this in an actual project.
+		resultDoc.ID = id
+
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				return Order{}, ErrOrderNotFound
+			} else {
+				return Order{}, fmt.Errorf("InsertOrder: %v", err)
+			}
+		} else {
+			// No error, this means it successfully found an order.
+			fmt.Println("order exists.")
+			return resultDoc, nil
+		}
+	}
 	return Order{}, errors.New("unimplemented")
 }
 
@@ -35,8 +71,64 @@ func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
 // GetOrders should return all orders with the given status. If status is the
 // special -1 value then it should return all orders regardless of their status.
 func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, error) {
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			panic(err)
+		}
+	}()
+
+	collection := client.Database("order-up-tests").Collection("orders")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var orderResults []Order
+
+	if status == -1 {
+		cur, err := collection.Find(ctx, bson.D{})
+
+		if err != nil {
+			return nil, fmt.Errorf("GetOrders: %v", err)
+		}
+
+		for cur.Next(ctx) {
+			result := Order{}
+
+			err := cur.Decode(&result)
+			if err != nil {
+				return nil, fmt.Errorf("GetOrders: %v", err)
+			}
+
+			orderResults = append(orderResults, result)
+		}
+
+		return orderResults, nil
+	} else {
+		filter := bson.D{{Key: "status", Value: status}}
+		// Didn't realize, in the event of an existing document we want to error.
+		cur, err := collection.Find(ctx, filter, nil)
+
+		if err != nil {
+			return nil, fmt.Errorf("GetOrders: %v", err)
+		}
+
+		for cur.Next(ctx) {
+			result := Order{}
+
+			err := cur.Decode(&result)
+			if err != nil {
+				return nil, fmt.Errorf("GetOrders: %v", err)
+			}
+
+			orderResults = append(orderResults, result)
+		}
+
+		return orderResults, nil
+	}
+
 	// TODO: get orders from DB based based on the status sent, unless status is -1
-	return nil, errors.New("unimplemented")
+	// return nil, errors.New("unimplemented")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +137,44 @@ func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, 
 // field. If that ID isn't found then the special ErrOrderNotFound error should
 // be returned.
 func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderStatus) error {
-	// TODO: update the order's status field to status for the id
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			panic(err)
+		}
+	}()
+
+	collection := client.Database("order-up-tests").Collection("orders")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if id != "" {
+		// Find item.
+		// Abstract this fetch by id chunk out.
+		filter := bson.D{{Key: "_id", Value: id}}
+		res := collection.FindOne(ctx, filter, nil)
+
+		var resultDoc map[string]interface{}
+
+		err := res.Decode(&resultDoc)
+
+		if err != nil {
+			// Error there. If it is due to no documents, skip. If it is anything else, return out.
+			if err == mongo.ErrNoDocuments {
+				fmt.Println("No documents found. Proceeding with insert.")
+			} else {
+				return fmt.Errorf("InsertOrder: %v", err)
+			}
+		} else {
+			// No error, this means it successfully found an order.
+			fmt.Println("order exists.")
+			return ErrOrderExists
+		}
+
+		// Then update.
+	}
+	// If id is not found, then return err.
 	return nil
 }
 
@@ -72,28 +201,28 @@ func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error)
 		// Didn't realize, in the event of an existing document we want to error.
 		res := collection.FindOne(ctx, filter, nil)
 
-		// if res.err != nil {
-		// 	return "", fmt.Errorf("error: InsertOrder: %v", err)
-		// }
-
 		var resultDoc map[string]interface{}
 
 		err := res.Decode(&resultDoc)
 
 		if err != nil {
-			return "", fmt.Errorf("error: InsertOrder: %v", err)
+			// Error there. If it is due to no documents, skip. If it is anything else, return out.
+			if err == mongo.ErrNoDocuments {
+				fmt.Println("No documents found. Proceeding with insert.")
+			} else {
+				return "", fmt.Errorf("InsertOrder: %v", err)
+			}
+		} else {
+			// No error, this means it successfully found an order.
+			fmt.Println("order exists.")
+			return "", ErrOrderExists
 		}
-
-		if resultDoc != nil {
-			return "", fmt.Errorf("error: InsertOrder: order already exists")
-		}
-
-		// if existingDoc.
 
 		opts := options.Update().SetUpsert(true)
 
 		update := bson.D{{Key: "$set", Value: bson.D{
 			{Key: "_id", Value: order.ID},
+			{Key: "id", Value: order.ID},
 			{Key: "customerEmail", Value: order.CustomerEmail},
 			{Key: "status", Value: order.Status},
 			{Key: "lineItems", Value: order.LineItems},
@@ -115,6 +244,7 @@ func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error)
 
 		update := bson.D{{Key: "$set", Value: bson.D{
 			{Key: "_id", Value: new_id},
+			{Key: "id", Value: new_id},
 			{Key: "customerEmail", Value: order.CustomerEmail},
 			{Key: "status", Value: order.Status},
 			{Key: "lineItems", Value: order.LineItems},
@@ -123,7 +253,7 @@ func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error)
 
 		res, err := collection.UpdateOne(ctx, filter, update, opts)
 		if err != nil {
-			return "", fmt.Errorf("error: InsertOrder: %v", err)
+			return "", ErrOrderExists
 		}
 
 		fmt.Printf("%d documents inserted\n", res.UpsertedCount)
